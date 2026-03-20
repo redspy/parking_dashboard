@@ -41,3 +41,27 @@
 [37m================================[0m
 [33m
  Exiting with error code 1[0m
+오전 12:58:25 [tsx] change in ./src/db.ts Rerunning...
+c[37m================================[0m
+ [33mMissing[0m environment variables:
+    [34mDATABASE_URL[0m: undefined
+    [34mJWT_SECRET[0m: undefined
+[37m================================[0m
+[33m
+ Exiting with error code 1[0m
+오전 12:58:39 [tsx] change in ./src/middleware/auth.ts Rerunning...
+c[37m================================[0m
+ [33mMissing[0m environment variables:
+    [34mDATABASE_URL[0m: undefined
+    [34mJWT_SECRET[0m: undefined
+[37m================================[0m
+[33m
+ Exiting with error code 1[0m
+오전 12:58:44 [tsx] change in ./src/socket/index.ts Rerunning...
+c[37m================================[0m
+ [33mMissing[0m environment variables:
+    [34mDATABASE_URL[0m: undefined
+    [34mJWT_SECRET[0m: undefined
+[37m================================[0m
+[33m
+ Exiting with error code 1[0m
