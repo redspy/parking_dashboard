@@ -6,8 +6,12 @@ interface Props {
   mobileBaseUrl?: string;
 }
 
-export function QRCodePanel({ token, simulationId, mobileBaseUrl = "http://localhost:5174" }: Props) {
-  const url = `${mobileBaseUrl}/simulator?token=${token}&sim=${simulationId}`;
+export function QRCodePanel({ token, simulationId, mobileBaseUrl }: Props) {
+  // 현재 브라우저의 실제 IP/호스트를 기반으로 모바일 URL 생성
+  // localhost → 실제 LAN IP로 자동 치환되어 QR 스캔 시 모바일 접속 가능
+  const hostname = window.location.hostname;
+  const resolvedBase = mobileBaseUrl ?? `http://${hostname}:5174`;
+  const url = `${resolvedBase}/?token=${token}&sim=${simulationId}`;
 
   return (
     <div style={{

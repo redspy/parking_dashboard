@@ -200,12 +200,27 @@ cmd_start() {
   start_admin
   start_mobile
 
+  # 현재 머신의 LAN IP 감지
+  LAN_IP=$(ipconfig getifaddr en0 2>/dev/null || \
+            ipconfig getifaddr en1 2>/dev/null || \
+            hostname -I 2>/dev/null | awk '{print $1}' || \
+            echo "")
+
   echo ""
   echo -e "${GREEN}${BOLD}✅ 모든 서버가 실행 중입니다${NC}"
   echo ""
-  echo -e "  ${BOLD}API 서버${NC}  →  ${CYAN}http://localhost:4000${NC}  (health: /health)"
+  echo -e "  ${BOLD}API 서버${NC}  →  ${CYAN}http://localhost:4000${NC}"
   echo -e "  ${BOLD}Admin${NC}     →  ${CYAN}http://localhost:5173${NC}"
   echo -e "  ${BOLD}Mobile${NC}    →  ${CYAN}http://localhost:5174${NC}"
+  if [ -n "$LAN_IP" ]; then
+    echo ""
+    echo -e "  ${BOLD}📱 같은 네트워크에서 접속 (QR 스캔용)${NC}"
+    echo -e "  ${BOLD}Admin${NC}     →  ${YELLOW}http://${LAN_IP}:5173${NC}"
+    echo -e "  ${BOLD}Mobile${NC}    →  ${YELLOW}http://${LAN_IP}:5174${NC}"
+    echo ""
+    echo -e "  ${GREEN}💡 Admin을 ${BOLD}http://${LAN_IP}:5173${NC}${GREEN} 으로 열면"
+    echo -e "     QR 코드가 자동으로 LAN IP를 사용합니다${NC}"
+  fi
   echo ""
   echo -e "  로그인: ${YELLOW}admin@demo.com${NC} / ${YELLOW}admin123${NC}"
   echo ""

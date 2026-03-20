@@ -22,6 +22,7 @@ export default defineConfig({
   ],
   server: {
     port: 5174,
+    host: true, // 0.0.0.0 — LAN 접속 허용
     proxy: {
       "/api": { target: "http://localhost:4000", changeOrigin: true },
       "/socket.io": { target: "http://localhost:4000", ws: true },
