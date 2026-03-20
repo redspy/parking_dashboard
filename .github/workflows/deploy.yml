@@ -8,19 +8,21 @@ on:
 jobs:
   deploy:
     runs-on: [self-hosted, windows]
-    env:
-      DEPLOY_DIR: D:\Source\parking_dashboard
-      DEPLOY_BRANCH: main
 
     steps:
-      - name: Sync latest code and run deploy.bat
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          clean: true
+
+      - name: Run deploy.bat from workspace
         shell: cmd
         run: |
-          if not exist "%DEPLOY_DIR%" (
-            echo ERROR: DEPLOY_DIR not found: %DEPLOY_DIR%
+          echo Workspace: %GITHUB_WORKSPACE%
+          if not exist "%GITHUB_WORKSPACE%\deploy.bat" (
+            echo ERROR: deploy.bat not found in workspace
             exit /b 1
           )
-          cd /d %DEPLOY_DIR%
-          git fetch origin %DEPLOY_BRANCH%
-          git reset --hard origin/%DEPLOY_BRANCH%
-          call "%DEPLOY_DIR%\deploy.bat"
+          cd /d %GITHUB_WORKSPACE%
+          call "%GITHUB_WORKSPACE%\deploy.bat"
