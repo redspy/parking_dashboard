@@ -1,0 +1,22 @@
+version: "3.9"
+
+services:
+  api:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile.dev
+    ports:
+      - "4000:4000"
+    environment:
+      DATABASE_URL: "file:/data/parking.db"
+      JWT_SECRET: "dev-secret-min-32-chars-replace-me"
+      NODE_ENV: development
+      CORS_ORIGIN: "http://localhost:5173,http://localhost:5174"
+    volumes:
+      - ./apps/api:/app
+      - api_db:/data
+      - /app/node_modules
+    command: pnpm dev
+
+volumes:
+  api_db:

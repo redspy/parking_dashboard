@@ -1,0 +1,300 @@
+// This is your Prisma schema file
+// MVP: SQLite | Production: PostgreSQL (swap DATABASE_URL only)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Organization ─────────────────────────────────────────────────────────────
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  plan      String   @default("FREE") // OrgPlan enum
+  createdAt DateTime @default(now())
+
+  lots  ParkingLot[]
+  users User[]
+  simulations Simulation[]
+  alerts Alert[]
+}
+
+// ─── User / Auth ──────────────────────────────────────────────────────────────
+model User {
+  id             String       @id @default(cuid())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
+  email          String       @unique
+  passwordHash   String
+  role           String       @default("OPERATOR") // UserRole enum
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  auditLogs AuditLog[]
+}
+
+// ─── Parking Lot ──────────────────────────────────────────────────────────────
+model ParkingLot {
+  id                      String       @id @default(cuid())
+  organization            Organization @relation(fields: [organizationId], references: [id])
+  organizationId          String
+  name                    String
+  location                String
+  totalSlots              Int          @default(0)
+  anprConfidenceThreshold Float        @default(0.90)
+  createdAt               DateTime     @default(now())
+  updatedAt               DateTime     @updatedAt
+
+  zones        ParkingZone[]
+  simulations  Simulation[]
+  pricingRules PricingRule[]
+  alerts       Alert[]
+}
+
+// ─── Parking Zone ─────────────────────────────────────────────────────────────
+model ParkingZone {
+  id          String     @id @default(cuid())
+  lot         ParkingLot @relation(fields: [lotId], references: [id])
+  lotId       String
+  name        String
+  floor       String
+  totalSlots  Int        @default(0)
+  activeSlots Int        @default(0)
+
+  slots        ParkingSlot[]
+  pricingRules PricingRule[]
+  sensors      SensorDevice[]
+}
+
+// ─── Parking Slot ─────────────────────────────────────────────────────────────
+model ParkingSlot {
+  id            String      @id @default(cuid())
+  zone          ParkingZone @relation(fields: [zoneId], references: [id])
+  zoneId        String
+  slotCode      String
+  status        String      @default("EMPTY") // SlotStatus enum
+  isEvCharging  Boolean     @default(false)
+  chargerType   String?     // ChargerType enum
+  chargerStatus String?     // ChargerStatus enum
+  lastChangedAt DateTime    @default(now())
+
+  sessions     ParkingSession[]
+  reservations Reservation[]
+  sensors      SensorDevice[]
+}
+
+// ─── Vehicle ──────────────────────────────────────────────────────────────────
+model Vehicle {
+  id          String @id @default(cuid())
+  plateNumber String @unique
+  vehicleType String @default("CAR") // VehicleType enum
+  ownerType   String @default("VISITOR") // OwnerType enum
+
+  sessions     ParkingSession[]
+  reservations Reservation[]
+}
+
+// ─── Parking Session ──────────────────────────────────────────────────────────
+model ParkingSession {
+  id            String      @id @default(cuid())
+  vehicle       Vehicle     @relation(fields: [vehicleId], references: [id])
+  vehicleId     String
+  slot          ParkingSlot @relation(fields: [slotId], references: [id])
+  slotId        String
+  entryTime     DateTime    @default(now())
+  exitTime      DateTime?
+  paymentStatus String      @default("UNPAID") // PaymentStatus enum
+  feeAmount     Float?
+
+  pricingHistory   PricingHistory[]
+  paymentTransactions PaymentTransaction[]
+}
+
+// ─── Alert ────────────────────────────────────────────────────────────────────
+model Alert {
+  id             String       @id @default(cuid())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
+  lot            ParkingLot?  @relation(fields: [lotId], references: [id])
+  lotId          String?
+  type           String       // AlertType enum
+  severity       String       @default("WARN") // AlertSeverity enum
+  message        String
+  status         String       @default("OPEN") // AlertStatus enum
+  createdAt      DateTime     @default(now())
+  resolvedAt     DateTime?
+}
+
+// ─── Audit Log ────────────────────────────────────────────────────────────────
+model AuditLog {
+  id           String   @id @default(cuid())
+  user         User?    @relation(fields: [userId], references: [id])
+  userId       String?
+  action       String
+  resourceType String
+  resourceId   String
+  payloadJson  String
+  createdAt    DateTime @default(now())
+}
+
+// ─── Simulation ───────────────────────────────────────────────────────────────
+model Simulation {
+  id             String       @id @default(cuid())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
+  lot            ParkingLot?  @relation(fields: [lotId], references: [id])
+  lotId          String?
+  name           String
+  status         String       @default("READY") // SimulationStatus enum
+  gateState      String       @default("CLOSED") // GateState enum
+  createdAt      DateTime     @default(now())
+  endedAt        DateTime?
+
+  qrTokens  SimulationQrToken[]
+  vehicles  SimulationVehicle[]
+  gateEvents GateEvent[]
+}
+
+// ─── QR Token ─────────────────────────────────────────────────────────────────
+model SimulationQrToken {
+  id           String     @id @default(cuid())
+  simulation   Simulation @relation(fields: [simulationId], references: [id])
+  simulationId String
+  token        String     @unique
+  expiresAt    DateTime
+  scanCount    Int        @default(0)
+
+  vehicles SimulationVehicle[]
+}
+
+// ─── Simulation Vehicle ───────────────────────────────────────────────────────
+model SimulationVehicle {
+  id             String            @id @default(cuid())
+  simulation     Simulation        @relation(fields: [simulationId], references: [id])
+  simulationId   String
+  sourceToken    SimulationQrToken @relation(fields: [sourceTokenId], references: [id])
+  sourceTokenId  String
+  label          String
+  state          String            @default("QUEUED") // VehicleState enum
+  spawnedAt      DateTime          @default(now())
+  passedAt       DateTime?
+
+  gateEvents GateEvent[]
+}
+
+// ─── Gate Event ───────────────────────────────────────────────────────────────
+model GateEvent {
+  id           String             @id @default(cuid())
+  simulation   Simulation         @relation(fields: [simulationId], references: [id])
+  simulationId String
+  vehicle      SimulationVehicle? @relation(fields: [vehicleId], references: [id])
+  vehicleId    String?
+  eventType    String             // GateEventType enum
+  payloadJson  String
+  createdAt    DateTime           @default(now())
+}
+
+// ─── Reservation ─────────────────────────────────────────────────────────────
+model Reservation {
+  id         String      @id @default(cuid())
+  slot       ParkingSlot @relation(fields: [slotId], references: [id])
+  slotId     String
+  vehicle    Vehicle     @relation(fields: [vehicleId], references: [id])
+  vehicleId  String
+  reservedBy String
+  startTime  DateTime
+  endTime    DateTime
+  status     String      @default("PENDING") // ReservationStatus enum
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+}
+
+// ─── Pricing Rule ─────────────────────────────────────────────────────────────
+model PricingRule {
+  id                 String      @id @default(cuid())
+  lot                ParkingLot  @relation(fields: [lotId], references: [id])
+  lotId              String
+  zone               ParkingZone? @relation(fields: [zoneId], references: [id])
+  zoneId             String?
+  name               String
+  baseRate           Float
+  occupancyThreshold Float
+  rateMultiplier     Float
+  validFrom          DateTime
+  validUntil         DateTime?
+  isActive           Boolean     @default(true)
+
+  history PricingHistory[]
+}
+
+// ─── Pricing History ──────────────────────────────────────────────────────────
+model PricingHistory {
+  id               String         @id @default(cuid())
+  rule             PricingRule    @relation(fields: [ruleId], references: [id])
+  ruleId           String
+  session          ParkingSession @relation(fields: [sessionId], references: [id])
+  sessionId        String
+  appliedRate      Float
+  occupancyAtEntry Float
+  createdAt        DateTime       @default(now())
+}
+
+// ─── Payment Transaction ──────────────────────────────────────────────────────
+model PaymentTransaction {
+  id             String         @id @default(cuid())
+  session        ParkingSession @relation(fields: [sessionId], references: [id])
+  sessionId      String
+  provider       String         // PaymentProvider enum
+  pgRefId        String?
+  amount         Float
+  currency       String         @default("KRW")
+  status         String         @default("PENDING") // PaymentTxStatus enum
+  idempotencyKey String         @unique
+  paidAt         DateTime?
+  refundedAt     DateTime?
+  createdAt      DateTime       @default(now())
+}
+
+// ─── Sensor Device ────────────────────────────────────────────────────────────
+model SensorDevice {
+  id               String       @id @default(cuid())
+  slot             ParkingSlot? @relation(fields: [slotId], references: [id])
+  slotId           String?
+  zone             ParkingZone? @relation(fields: [zoneId], references: [id])
+  zoneId           String?
+  type             String       // SensorType enum
+  vendor           String?
+  serialNumber     String?
+  status           String       @default("ONLINE") // SensorStatus enum
+  lastHeartbeatAt  DateTime?
+  installedAt      DateTime     @default(now())
+
+  events SensorEvent[]
+}
+
+// ─── Sensor Event ─────────────────────────────────────────────────────────────
+model SensorEvent {
+  id          String       @id @default(cuid())
+  sensor      SensorDevice @relation(fields: [sensorId], references: [id])
+  sensorId    String
+  eventType   String       // SensorEventType enum
+  payloadJson String
+  createdAt   DateTime     @default(now())
+}
+
+// ─── Job Queue ────────────────────────────────────────────────────────────────
+model JobQueue {
+  id          String   @id @default(cuid())
+  type        String   // JobType enum
+  payloadJson String
+  status      String   @default("PENDING") // JobStatus enum
+  attempts    Int      @default(0)
+  maxAttempts Int      @default(3)
+  nextRunAt   DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
