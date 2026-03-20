@@ -20,11 +20,29 @@ if %ERRORLEVEL% neq 0 (
   echo pnpm not found. Trying corepack...
   where corepack >nul 2>&1
   if %ERRORLEVEL% neq 0 (
-    echo ERROR: pnpm/corepack not found. Install Node.js 20+ with corepack.
-    exit /b 1
+    echo corepack not found. Trying npm global install for pnpm...
+    where npm >nul 2>&1
+    if %ERRORLEVEL% neq 0 (
+      echo ERROR: npm not found. Install Node.js 20+ on runner.
+      exit /b 1
+    )
+    call npm install -g pnpm@9.1.0
+    if %ERRORLEVEL% neq 0 (
+      echo ERROR: pnpm installation via npm failed.
+      exit /b 1
+    )
+  ) else (
+    call corepack enable
+    call corepack prepare pnpm@9.1.0 --activate
+    if %ERRORLEVEL% neq 0 (
+      echo corepack prepare failed. Trying npm global install for pnpm...
+      call npm install -g pnpm@9.1.0
+      if %ERRORLEVEL% neq 0 (
+        echo ERROR: pnpm installation failed.
+        exit /b 1
+      )
+    )
   )
-  call corepack enable
-  call corepack prepare pnpm@9.1.0 --activate
   where pnpm >nul 2>&1
   if %ERRORLEVEL% neq 0 (
     echo ERROR: pnpm installation failed.

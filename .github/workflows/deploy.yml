@@ -16,6 +16,16 @@ jobs:
           fetch-depth: 0
           clean: true
 
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Enable corepack
+        shell: cmd
+        run: |
+          corepack enable
+
       - name: Run deploy.bat from workspace
         shell: cmd
         run: |
