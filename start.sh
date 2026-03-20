@@ -38,7 +38,7 @@ check_pnpm() {
 }
 
 # ─── 명령 파싱 ────────────────────────────────────────────────────────────────
-CMD="${1:-start}"
+CMD="${1:-dev}"
 
 # ─── 도움말 ───────────────────────────────────────────────────────────────────
 usage() {
@@ -49,14 +49,12 @@ usage() {
   echo "  ./start.sh [명령]"
   echo ""
   echo "명령:"
-  echo "  start    모든 서버 실행 (기본값)"
-  echo "  api      API 서버만 실행"
-  echo "  admin    Admin 대시보드만 실행"
-  echo "  mobile   모바일 시뮬레이터만 실행"
-  echo "  setup    초기 설정 (의존성 설치 + DB 마이그레이션 + 시드)"
+  echo -e "  ${GREEN}dev${NC}      파일 변경 감지 + 자동 재시작 (기본값, 권장)"
+  echo "  start    백그라운드 실행 (로그 파일 기록)"
   echo "  stop     실행 중인 모든 서버 종료"
+  echo "  setup    초기 설정 (의존성 설치 + DB 마이그레이션 + 시드)"
   echo "  status   서버 상태 확인"
-  echo "  logs     서버 로그 보기"
+  echo "  logs     백그라운드 서버 로그 보기"
   echo "  help     이 도움말 출력"
   echo ""
   echo "접속 주소:"
@@ -67,6 +65,78 @@ usage() {
   echo "테스트 계정:"
   echo "  admin@demo.com / admin123"
   echo ""
+}
+
+# ─── LAN IP 감지 (공통 사용) ──────────────────────────────────────────────────
+get_lan_ip() {
+  ipconfig getifaddr en0 2>/dev/null || \
+  ipconfig getifaddr en1 2>/dev/null || \
+  hostname -I 2>/dev/null | awk '{print $1}' || \
+  echo ""
+}
+
+print_urls() {
+  local lan_ip
+  lan_ip=$(get_lan_ip)
+  echo ""
+  echo -e "  ${BOLD}API 서버${NC}  →  ${CYAN}http://localhost:4000${NC}"
+  echo -e "  ${BOLD}Admin${NC}     →  ${CYAN}http://localhost:5173${NC}"
+  echo -e "  ${BOLD}Mobile${NC}    →  ${CYAN}http://localhost:5174${NC}"
+  if [ -n "$lan_ip" ]; then
+    echo ""
+    echo -e "  ${BOLD}📱 같은 네트워크에서 접속 (QR 스캔용)${NC}"
+    echo -e "  ${BOLD}Admin${NC}     →  ${YELLOW}http://${lan_ip}:5173${NC}"
+    echo -e "  ${BOLD}Mobile${NC}    →  ${YELLOW}http://${lan_ip}:5174${NC}"
+    echo ""
+    echo -e "  ${GREEN}💡 Admin을 ${BOLD}http://${lan_ip}:5173${NC}${GREEN} 으로 열면"
+    echo -e "     QR 코드가 자동으로 LAN IP를 사용합니다${NC}"
+  fi
+  echo ""
+  echo -e "  로그인: ${YELLOW}admin@demo.com${NC} / ${YELLOW}admin123${NC}"
+  echo ""
+}
+
+check_db() {
+  if [ ! -f "$API_DIR/.env" ]; then
+    warn ".env 파일이 없습니다. 초기 설정을 먼저 실행하세요:"
+    info "  ./start.sh setup"
+    exit 1
+  fi
+  if [ ! -f "$API_DIR/prisma/dev.db" ] && [ ! -f "$API_DIR/dev.db" ]; then
+    warn "데이터베이스가 없습니다. 초기 설정을 먼저 실행하세요:"
+    info "  ./start.sh setup"
+    exit 1
+  fi
+}
+
+# ─── dev 모드 (파일 변경 감지 + 자동 재시작) ─────────────────────────────────
+cmd_dev() {
+  echo ""
+  echo -e "${BOLD}🅿 주차관리 시스템 — 개발 모드 (watch)${NC}"
+  echo ""
+  echo -e "  ${GREEN}파일 변경 시 자동으로 재시작됩니다${NC}"
+  echo -e "  종료: ${RED}Ctrl+C${NC}"
+
+  check_pnpm
+  check_db
+
+  print_urls
+
+  cd "$REPO_DIR"
+  # concurrently로 3개 서버 동시 실행
+  # --kill-others-on-fail: 하나가 비정상 종료되면 나머지도 종료
+  # --restart-tries 5: 비정상 종료 시 최대 5회 재시작
+  pnpm exec concurrently \
+    --names "API,ADMIN,MOBILE" \
+    --prefix-colors "cyan.bold,blue.bold,magenta.bold" \
+    --prefix "[{name}]" \
+    --timestamp-format "HH:mm:ss" \
+    --kill-others-on-fail \
+    --restart-tries 5 \
+    --restart-after 1000 \
+    "cd apps/api && pnpm dev" \
+    "cd apps/admin && pnpm dev" \
+    "cd apps/mobile && pnpm dev"
 }
 
 # ─── 초기 설정 ────────────────────────────────────────────────────────────────
@@ -174,24 +244,11 @@ wait_for_api() {
 
 cmd_start() {
   echo ""
-  echo -e "${BOLD}🅿 주차관리 시스템을 시작합니다${NC}"
+  echo -e "${BOLD}🅿 주차관리 시스템을 백그라운드로 시작합니다${NC}"
   echo ""
 
   check_pnpm
-
-  # .env 확인
-  if [ ! -f "$API_DIR/.env" ]; then
-    warn ".env 파일이 없습니다. 초기 설정을 먼저 실행하세요:"
-    info "  ./start.sh setup"
-    exit 1
-  fi
-
-  # dev.db 확인 (Prisma 기본 위치: prisma/dev.db)
-  if [ ! -f "$API_DIR/prisma/dev.db" ] && [ ! -f "$API_DIR/dev.db" ]; then
-    warn "데이터베이스가 없습니다. 초기 설정을 먼저 실행하세요:"
-    info "  ./start.sh setup"
-    exit 1
-  fi
+  check_db
 
   start_api
   sleep 3
@@ -200,62 +257,11 @@ cmd_start() {
   start_admin
   start_mobile
 
-  # 현재 머신의 LAN IP 감지
-  LAN_IP=$(ipconfig getifaddr en0 2>/dev/null || \
-            ipconfig getifaddr en1 2>/dev/null || \
-            hostname -I 2>/dev/null | awk '{print $1}' || \
-            echo "")
-
   echo ""
-  echo -e "${GREEN}${BOLD}✅ 모든 서버가 실행 중입니다${NC}"
-  echo ""
-  echo -e "  ${BOLD}API 서버${NC}  →  ${CYAN}http://localhost:4000${NC}"
-  echo -e "  ${BOLD}Admin${NC}     →  ${CYAN}http://localhost:5173${NC}"
-  echo -e "  ${BOLD}Mobile${NC}    →  ${CYAN}http://localhost:5174${NC}"
-  if [ -n "$LAN_IP" ]; then
-    echo ""
-    echo -e "  ${BOLD}📱 같은 네트워크에서 접속 (QR 스캔용)${NC}"
-    echo -e "  ${BOLD}Admin${NC}     →  ${YELLOW}http://${LAN_IP}:5173${NC}"
-    echo -e "  ${BOLD}Mobile${NC}    →  ${YELLOW}http://${LAN_IP}:5174${NC}"
-    echo ""
-    echo -e "  ${GREEN}💡 Admin을 ${BOLD}http://${LAN_IP}:5173${NC}${GREEN} 으로 열면"
-    echo -e "     QR 코드가 자동으로 LAN IP를 사용합니다${NC}"
-  fi
-  echo ""
-  echo -e "  로그인: ${YELLOW}admin@demo.com${NC} / ${YELLOW}admin123${NC}"
-  echo ""
+  echo -e "${GREEN}${BOLD}✅ 모든 서버가 백그라운드에서 실행 중입니다${NC}"
+  print_urls
   echo -e "  종료:   ${RED}./start.sh stop${NC}"
   echo -e "  로그:   ${CYAN}./start.sh logs${NC}"
-  echo ""
-}
-
-cmd_api_only() {
-  echo ""
-  check_pnpm
-  start_api
-  sleep 3
-  wait_for_api
-  echo ""
-  echo -e "  ${BOLD}API${NC} → ${CYAN}http://localhost:4000${NC}"
-  echo -e "  로그: ${CYAN}./start.sh logs${NC}"
-  echo ""
-}
-
-cmd_admin_only() {
-  echo ""
-  check_pnpm
-  start_admin
-  echo ""
-  echo -e "  ${BOLD}Admin${NC} → ${CYAN}http://localhost:5173${NC}  (API 서버도 필요합니다)"
-  echo ""
-}
-
-cmd_mobile_only() {
-  echo ""
-  check_pnpm
-  start_mobile
-  echo ""
-  echo -e "  ${BOLD}Mobile${NC} → ${CYAN}http://localhost:5174${NC}  (API 서버도 필요합니다)"
   echo ""
 }
 
@@ -288,7 +294,6 @@ cmd_stop() {
 
   # 포트 기반 강제 종료 (백업)
   for port in 4000 5173 5174; do
-    local pid
     pid=$(lsof -ti tcp:"$port" 2>/dev/null || true)
     if [ -n "$pid" ]; then
       kill "$pid" 2>/dev/null && ok "포트 $port 프로세스 종료됨"
@@ -385,10 +390,8 @@ cmd_logs() {
 
 # ─── 명령 실행 ────────────────────────────────────────────────────────────────
 case "$CMD" in
+  dev)     cmd_dev ;;
   start)   cmd_start ;;
-  api)     cmd_api_only ;;
-  admin)   cmd_admin_only ;;
-  mobile)  cmd_mobile_only ;;
   setup)   cmd_setup ;;
   stop)    cmd_stop ;;
   status)  cmd_status ;;

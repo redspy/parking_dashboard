@@ -3,7 +3,10 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "turbo dev",
+    "dev": "concurrently --names \"API,ADMIN,MOBILE\" --prefix-colors \"cyan,blue,magenta\" \"pnpm --filter @parking/api dev\" \"pnpm --filter @parking/admin dev\" \"pnpm --filter @parking/mobile dev\"",
+    "dev:api": "pnpm --filter @parking/api dev",
+    "dev:admin": "pnpm --filter @parking/admin dev",
+    "dev:mobile": "pnpm --filter @parking/mobile dev",
     "build": "turbo build",
     "test": "turbo test",
     "lint": "turbo lint",
@@ -12,6 +15,7 @@
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^7.0.0",
     "@typescript-eslint/parser": "^7.0.0",
+    "concurrently": "^8.2.2",
     "eslint": "^8.57.0",
     "eslint-plugin-import": "^2.29.1",
     "prettier": "^3.2.5",

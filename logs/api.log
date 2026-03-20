@@ -1,0 +1,11 @@
+
+> @parking/api@1.0.0 dev /Users/soul/Source/parking_dashboard/apps/api
+> tsx watch src/main.ts
+
+[37m================================[0m
+ [33mMissing[0m environment variables:
+    [34mDATABASE_URL[0m: undefined
+    [34mJWT_SECRET[0m: undefined
+[37m================================[0m
+[33m
+ Exiting with error code 1[0m
