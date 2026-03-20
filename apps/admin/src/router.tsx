@@ -16,7 +16,7 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
   return <Layout>{children}</Layout>;
 }
 
-export const router = createBrowserRouter([
+export const router: ReturnType<typeof createBrowserRouter> = createBrowserRouter([
   { path: "/login", element: <LoginPage /> },
   {
     path: "/",
