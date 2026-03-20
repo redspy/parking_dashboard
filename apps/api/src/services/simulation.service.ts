@@ -37,7 +37,7 @@ export async function createSimulation(
   return { simulation, qrToken };
 }
 
-export async function scanQr(token: string) {
+export async function scanQr(token: string, plateNumber?: string) {
   const qrToken = await prisma.simulationQrToken.findUnique({ where: { token } });
   if (!qrToken) throw Errors.notFound("QR token");
   if (new Date() > qrToken.expiresAt) throw Errors.badRequest("QR token expired");
@@ -58,13 +58,16 @@ export async function scanQr(token: string) {
   const vehicleCount = await prisma.simulationVehicle.count({
     where: { simulationId: simulation.id },
   });
-  const label = `CAR-${String(vehicleCount + 1).padStart(3, "0")}`;
+  const label = plateNumber?.trim()
+    ? plateNumber.trim()
+    : `CAR-${String(vehicleCount + 1).padStart(3, "0")}`;
 
   const vehicle = await prisma.simulationVehicle.create({
     data: {
       simulationId: simulation.id,
       sourceTokenId: qrToken.id,
       label,
+      plateNumber: plateNumber?.trim() || null,
       state: "QUEUED",
     },
   });

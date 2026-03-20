@@ -179,6 +179,7 @@ model SimulationVehicle {
   sourceToken    SimulationQrToken @relation(fields: [sourceTokenId], references: [id])
   sourceTokenId  String
   label          String
+  plateNumber    String?           // Optional plate number for reserved vehicle simulation
   state          String            @default("QUEUED") // VehicleState enum
   spawnedAt      DateTime          @default(now())
   passedAt       DateTime?

@@ -65,3 +65,19 @@
 [37m================================[0m
 [33m
  Exiting with error code 1[0m
+오전 7:04:18 [tsx] change in ./src/services/simulation.service.ts Rerunning...
+c[37m================================[0m
+ [33mMissing[0m environment variables:
+    [34mDATABASE_URL[0m: undefined
+    [34mJWT_SECRET[0m: undefined
+[37m================================[0m
+[33m
+ Exiting with error code 1[0m
+오전 7:04:27 [tsx] change in ./src/routes/simulations.ts Rerunning...
+c[37m================================[0m
+ [33mMissing[0m environment variables:
+    [34mDATABASE_URL[0m: undefined
+    [34mJWT_SECRET[0m: undefined
+[37m================================[0m
+[33m
+ Exiting with error code 1[0m

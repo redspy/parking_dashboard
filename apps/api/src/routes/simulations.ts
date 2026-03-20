@@ -21,9 +21,9 @@ import { GateState } from "@parking/types";
 
 export async function simulationRoutes(app: FastifyInstance) {
   // Public QR scan endpoint (auth by token, not JWT)
-  app.post<{ Body: { token: string } }>("/api/simulations/scan", async (request) => {
-    const { token } = request.body;
-    const vehicle = await scanQr(token);
+  app.post<{ Body: { token: string; plateNumber?: string } }>("/api/simulations/scan", async (request) => {
+    const { token, plateNumber } = request.body;
+    const vehicle = await scanQr(token, plateNumber);
 
     // Get simulation to find room
     const sim = await prisma.simulationQrToken.findUnique({
