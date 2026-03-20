@@ -1,0 +1,26 @@
+name: Windows Auto Deploy
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, windows]
+    env:
+      DEPLOY_DIR: D:\Source\parking_dashboard
+      DEPLOY_BRANCH: main
+
+    steps:
+      - name: Sync latest code and run deploy.bat
+        shell: cmd
+        run: |
+          if not exist "%DEPLOY_DIR%" (
+            echo ERROR: DEPLOY_DIR not found: %DEPLOY_DIR%
+            exit /b 1
+          )
+          cd /d %DEPLOY_DIR%
+          git fetch origin %DEPLOY_BRANCH%
+          git reset --hard origin/%DEPLOY_BRANCH%
+          call "%DEPLOY_DIR%\deploy.bat"
