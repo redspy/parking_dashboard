@@ -9,17 +9,13 @@ export interface JwtPayload {
   email: string;
 }
 
-declare module "fastify" {
-  interface FastifyRequest {
-    user: JwtPayload;
-  }
-}
-
 export async function requireAuth(request: FastifyRequest, reply: FastifyReply) {
   try {
     await request.jwtVerify();
   } catch {
-    reply.code(401).send({ error: "UNAUTHORIZED", message: "Authentication required" });
+    return reply
+      .code(401)
+      .send({ error: "UNAUTHORIZED", message: "Authentication required" });
   }
 }
 

@@ -64,7 +64,6 @@ export function createSocketServer(httpServer: HttpServer) {
 
     socket.on("room:join_dashboard", (orgId) => {
       if (socket.data.organizationId !== orgId && socket.data.role !== "SUPER_ADMIN") {
-        socket.emit("dashboard:summary" as never);
         return;
       }
       socket.join(`dashboard:${orgId}`);
