@@ -12,15 +12,27 @@ export function QRCodePanel({ token, simulationId }: Props) {
   const [editing, setEditing] = useState(false);
 
   useEffect(() => {
-    // API 서버에서 실제 LAN IP를 받아와서 QR URL 구성
+    const currentHost = window.location.hostname;
+    const isLocalhost = currentHost === "localhost" || currentHost === "127.0.0.1";
+
+    if (!isLocalhost) {
+      // 이미 LAN IP로 접속 중 → 그대로 사용
+      setMobileBase(`http://${currentHost}:5174`);
+      return;
+    }
+
+    // localhost로 접속 중 → 서버에서 실제 LAN IP 조회
     fetch("/api/server-info")
       .then((r) => r.json())
       .then(({ lanIp }: { lanIp: string | null }) => {
-        const ip = lanIp ?? window.location.hostname;
-        setMobileBase(`http://${ip}:5174`);
+        if (lanIp) {
+          setMobileBase(`http://${lanIp}:5174`);
+        } else {
+          setMobileBase(`http://${currentHost}:5174`);
+        }
       })
       .catch(() => {
-        setMobileBase(`http://${window.location.hostname}:5174`);
+        setMobileBase(`http://${currentHost}:5174`);
       });
   }, []);
 
