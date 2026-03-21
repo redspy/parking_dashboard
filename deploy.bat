@@ -4,108 +4,101 @@ cd /d %~dp0
 
 set "REPO_DIR=%~dp0"
 set "LOG_DIR=%REPO_DIR%logs"
+set "API_DIR=%REPO_DIR%apps\api"
+set "ENV_FILE=%API_DIR%\.env"
+set "ENV_EXAMPLE=%REPO_DIR%.env.example"
 
 echo ========================================
-echo Parking Dashboard Windows Deploy
-echo Repo: %REPO_DIR%
+echo  Parking Dashboard  --  Windows Deploy
+echo  Repo : %REPO_DIR%
 echo ========================================
 
-if not exist "%LOG_DIR%" (
-  mkdir "%LOG_DIR%"
-)
+if not exist "%LOG_DIR%" mkdir "%LOG_DIR%"
 
+rem ── [1/8] pnpm 확인 ──────────────────────────────────────────────────────────
 echo [1/8] Checking pnpm...
 where pnpm >nul 2>&1
 if %ERRORLEVEL% neq 0 (
-  echo pnpm not found. Trying corepack...
-  where corepack >nul 2>&1
+  echo   pnpm not found. Installing via npm...
+  where npm >nul 2>&1
   if %ERRORLEVEL% neq 0 (
-    echo corepack not found. Trying npm global install for pnpm...
-    where npm >nul 2>&1
-    if %ERRORLEVEL% neq 0 (
-      echo ERROR: npm not found. Install Node.js 20+ on runner.
-      exit /b 1
-    )
-    call npm install -g pnpm@9.1.0
-    if %ERRORLEVEL% neq 0 (
-      echo ERROR: pnpm installation via npm failed.
-      exit /b 1
-    )
-  ) else (
-    call corepack enable
-    call corepack prepare pnpm@9.1.0 --activate
-    if %ERRORLEVEL% neq 0 (
-      echo corepack prepare failed. Trying npm global install for pnpm...
-      call npm install -g pnpm@9.1.0
-      if %ERRORLEVEL% neq 0 (
-        echo ERROR: pnpm installation failed.
-        exit /b 1
-      )
-    )
-  )
-  where pnpm >nul 2>&1
-  if %ERRORLEVEL% neq 0 (
-    echo ERROR: pnpm installation failed.
+    echo ERROR: Node.js ^(npm^) not found. Install Node.js 20+ first.
     exit /b 1
   )
+  call npm install -g pnpm@9
+  if %ERRORLEVEL% neq 0 ( echo ERROR: pnpm install failed. & exit /b 1 )
+  where pnpm >nul 2>&1
+  if %ERRORLEVEL% neq 0 ( echo ERROR: pnpm still not found after install. & exit /b 1 )
 )
+for /f "tokens=*" %%v in ('pnpm --version 2^>nul') do echo   pnpm %%v OK
 
-echo [2/8] Stopping existing services on ports 4000/5173/5174...
+rem ── [2/8] 기존 프로세스 종료 ─────────────────────────────────────────────────
+echo [2/8] Stopping existing services on ports 4000 / 5173 / 5174...
 for %%p in (4000 5173 5174) do (
-  for /f "tokens=5" %%a in ('netstat -ano ^| findstr :%%p ^| findstr LISTENING') do (
+  for /f "tokens=5" %%a in ('netstat -ano 2^>nul ^| findstr ":%%p " ^| findstr "LISTENING"') do (
     taskkill /F /PID %%a >nul 2>&1
   )
 )
 
+rem ── [3/8] 의존성 설치 ──────────────────────────────────────────────────────────
 echo [3/8] Installing dependencies...
 call pnpm install --frozen-lockfile
 if %ERRORLEVEL% neq 0 (
-  echo ERROR: pnpm install failed.
-  exit /b 1
+  echo   --frozen-lockfile failed. Trying without...
+  call pnpm install
+  if %ERRORLEVEL% neq 0 ( echo ERROR: pnpm install failed. & exit /b 1 )
 )
 
-echo [4/8] Building workspace...
+rem ── [4/8] 빌드 ────────────────────────────────────────────────────────────────
+echo [4/8] Building all packages...
 call pnpm build
-if %ERRORLEVEL% neq 0 (
-  echo ERROR: build failed.
-  exit /b 1
+if %ERRORLEVEL% neq 0 ( echo ERROR: Build failed. & exit /b 1 )
+
+rem ── [5/8] .env 확인 ───────────────────────────────────────────────────────────
+echo [5/8] Checking .env...
+if not exist "%ENV_FILE%" (
+  echo   apps\api\.env not found. Copying from .env.example...
+  copy /Y "%ENV_EXAMPLE%" "%ENV_FILE%" >nul
+  if %ERRORLEVEL% neq 0 ( echo ERROR: Could not copy .env.example to apps\api\.env & exit /b 1 )
+  echo   IMPORTANT: Edit apps\api\.env to set JWT_SECRET and other secrets.
 )
 
-if not exist "%REPO_DIR%apps\api\.env" (
-  echo [5/8] apps\api\.env not found. Copying from .env.example...
-  copy /Y "%REPO_DIR%.env.example" "%REPO_DIR%apps\api\.env" >nul
-)
-
-echo [6/8] Preparing API database...
+rem ── [6/8] DB 마이그레이션 ─────────────────────────────────────────────────────
+echo [6/8] Running database migrations...
 call pnpm --filter @parking/api exec prisma migrate deploy
-if %ERRORLEVEL% neq 0 (
-  echo ERROR: prisma migrate deploy failed.
-  exit /b 1
-)
+if %ERRORLEVEL% neq 0 ( echo ERROR: prisma migrate deploy failed. & exit /b 1 )
 
-echo [7/8] Starting API/Admin/Mobile...
-rem API is started with tsx to support workspace TS imports (@parking/types)
-start "parking-api" /MIN cmd /c "cd /d %REPO_DIR% && pnpm --filter @parking/api dev >> %LOG_DIR%\api.log 2>&1"
-start "parking-admin" /MIN cmd /c "cd /d %REPO_DIR% && pnpm --filter @parking/admin preview -- --host 0.0.0.0 --port 5173 >> %LOG_DIR%\admin.log 2>&1"
-start "parking-mobile" /MIN cmd /c "cd /d %REPO_DIR% && pnpm --filter @parking/mobile preview -- --host 0.0.0.0 --port 5174 >> %LOG_DIR%\mobile.log 2>&1"
+rem DB가 비어 있으면 시드 데이터 삽입
+call pnpm --filter @parking/api exec prisma db seed 2>nul
+rem (실패해도 계속 진행 - 이미 시드된 경우 무시)
 
-echo [8/8] Health check (API /health)...
+rem ── [7/8] 서비스 시작 ─────────────────────────────────────────────────────────
+echo [7/8] Starting services...
+
+rem API: 빌드된 JS 실행 (node --env-file=.env dist/main.js)
+start "parking-api"    /MIN cmd /c "pnpm --filter @parking/api start    >> "%LOG_DIR%\api.log"    2>&1"
+
+rem Admin / Mobile: Vite preview (빌드 결과물 서빙)
+start "parking-admin"  /MIN cmd /c "pnpm --filter @parking/admin preview  >> "%LOG_DIR%\admin.log"  2>&1"
+start "parking-mobile" /MIN cmd /c "pnpm --filter @parking/mobile preview >> "%LOG_DIR%\mobile.log" 2>&1"
+
+rem ── [8/8] API 헬스체크 ────────────────────────────────────────────────────────
+echo [8/8] Waiting for API to be ready (up to 90s)...
 powershell -NoProfile -Command ^
-  "$ok = $false; for ($i = 0; $i -lt 90; $i++) { try { $r = Invoke-WebRequest -Uri 'http://127.0.0.1:4000/health' -UseBasicParsing -TimeoutSec 2; if ($r.StatusCode -eq 200) { $ok = $true; break } } catch {}; Start-Sleep -Seconds 1 }; if (-not $ok) { exit 1 }"
+  "$ok=$false; for($i=0;$i-lt90;$i++){try{$r=Invoke-WebRequest -Uri 'http://127.0.0.1:4000/health' -UseBasicParsing -TimeoutSec 2; if($r.StatusCode-eq 200){$ok=$true;break}}catch{}; Start-Sleep 1}; if(-not $ok){exit 1}"
 if %ERRORLEVEL% neq 0 (
-  echo ERROR: API health check failed. Check logs\api.log
-  echo ---------- logs\api.log (tail 120) ----------
-  powershell -NoProfile -Command "if (Test-Path '%LOG_DIR%\\api.log') { Get-Content '%LOG_DIR%\\api.log' -Tail 120 } else { Write-Host 'api.log not found' }"
-  echo ---------- end log ----------
+  echo ERROR: API did not become healthy. Check logs:
+  echo --- logs\api.log (last 60 lines) ---
+  powershell -NoProfile -Command "Get-Content '%LOG_DIR%\api.log' -ErrorAction SilentlyContinue -Tail 60"
   exit /b 1
 )
 
+echo.
 echo ========================================
-echo Deploy complete.
-echo API    : http://localhost:4000
-echo Admin  : http://localhost:5173
-echo Mobile : http://localhost:5174
-echo Logs   : %LOG_DIR%
+echo  Deploy complete!
+echo  API    : http://localhost:4000
+echo  Admin  : http://localhost:5173
+echo  Mobile : http://localhost:5174
+echo  Logs   : %LOG_DIR%
 echo ========================================
-
 exit /b 0
