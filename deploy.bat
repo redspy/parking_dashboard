@@ -15,20 +15,21 @@ echo ========================================
 
 if not exist "%LOG_DIR%" mkdir "%LOG_DIR%"
 
-rem ── [1/8] pnpm 확인 ──────────────────────────────────────────────────────────
-echo [1/8] Checking pnpm...
+rem ── [1/8] Node.js / pnpm 확인 ────────────────────────────────────────────────
+echo [1/8] Checking Node.js and pnpm...
+
+where node >nul 2>&1
+if %ERRORLEVEL% neq 0 (
+  echo ERROR: Node.js not found. Install Node.js 20.6 or later.
+  exit /b 1
+)
+for /f "tokens=*" %%v in ('node --version 2^>nul') do echo   Node.js %%v
+
 where pnpm >nul 2>&1
 if %ERRORLEVEL% neq 0 (
   echo   pnpm not found. Installing via npm...
-  where npm >nul 2>&1
-  if %ERRORLEVEL% neq 0 (
-    echo ERROR: Node.js ^(npm^) not found. Install Node.js 20+ first.
-    exit /b 1
-  )
   call npm install -g pnpm@9
   if %ERRORLEVEL% neq 0 ( echo ERROR: pnpm install failed. & exit /b 1 )
-  where pnpm >nul 2>&1
-  if %ERRORLEVEL% neq 0 ( echo ERROR: pnpm still not found after install. & exit /b 1 )
 )
 for /f "tokens=*" %%v in ('pnpm --version 2^>nul') do echo   pnpm %%v OK
 
@@ -40,11 +41,11 @@ for %%p in (4000 5173 5174) do (
   )
 )
 
-rem ── [3/8] 의존성 설치 ──────────────────────────────────────────────────────────
+rem ── [3/8] 의존성 설치 ─────────────────────────────────────────────────────────
 echo [3/8] Installing dependencies...
 call pnpm install --frozen-lockfile
 if %ERRORLEVEL% neq 0 (
-  echo   --frozen-lockfile failed. Trying without...
+  echo   --frozen-lockfile failed. Retrying without...
   call pnpm install
   if %ERRORLEVEL% neq 0 ( echo ERROR: pnpm install failed. & exit /b 1 )
 )
@@ -55,12 +56,15 @@ call pnpm build
 if %ERRORLEVEL% neq 0 ( echo ERROR: Build failed. & exit /b 1 )
 
 rem ── [5/8] .env 확인 ───────────────────────────────────────────────────────────
-echo [5/8] Checking .env...
+echo [5/8] Checking environment file...
 if not exist "%ENV_FILE%" (
-  echo   apps\api\.env not found. Copying from .env.example...
+  echo   %ENV_FILE% not found. Copying from .env.example...
   copy /Y "%ENV_EXAMPLE%" "%ENV_FILE%" >nul
-  if %ERRORLEVEL% neq 0 ( echo ERROR: Could not copy .env.example to apps\api\.env & exit /b 1 )
-  echo   IMPORTANT: Edit apps\api\.env to set JWT_SECRET and other secrets.
+  if %ERRORLEVEL% neq 0 (
+    echo ERROR: Cannot copy .env.example to apps\api\.env
+    exit /b 1
+  )
+  echo   IMPORTANT: Edit apps\api\.env and set JWT_SECRET before running in production.
 )
 
 rem ── [6/8] DB 마이그레이션 ─────────────────────────────────────────────────────
@@ -68,28 +72,32 @@ echo [6/8] Running database migrations...
 call pnpm --filter @parking/api exec prisma migrate deploy
 if %ERRORLEVEL% neq 0 ( echo ERROR: prisma migrate deploy failed. & exit /b 1 )
 
-rem DB가 비어 있으면 시드 데이터 삽입
-call pnpm --filter @parking/api exec prisma db seed 2>nul
-rem (실패해도 계속 진행 - 이미 시드된 경우 무시)
+rem 최초 배포 시 시드 (실패해도 계속 진행)
+call pnpm --filter @parking/api exec prisma db seed >nul 2>&1
 
 rem ── [7/8] 서비스 시작 ─────────────────────────────────────────────────────────
 echo [7/8] Starting services...
-
-rem API: 빌드된 JS 실행 (node --env-file=.env dist/main.js)
-start "parking-api"    /MIN cmd /c "pnpm --filter @parking/api start    >> "%LOG_DIR%\api.log"    2>&1"
-
-rem Admin / Mobile: Vite preview (빌드 결과물 서빙)
-start "parking-admin"  /MIN cmd /c "pnpm --filter @parking/admin preview  >> "%LOG_DIR%\admin.log"  2>&1"
-start "parking-mobile" /MIN cmd /c "pnpm --filter @parking/mobile preview >> "%LOG_DIR%\mobile.log" 2>&1"
+rem pushd 로 CWD를 REPO_DIR 로 변경 → 상대 경로 logs\ 사용 (중첩 따옴표 없음)
+pushd "%REPO_DIR%"
+start "parking-api"    /MIN cmd /c "pnpm --filter @parking/api    start   1>>logs\api.log    2>&1"
+start "parking-admin"  /MIN cmd /c "pnpm --filter @parking/admin  preview 1>>logs\admin.log  2>&1"
+start "parking-mobile" /MIN cmd /c "pnpm --filter @parking/mobile preview 1>>logs\mobile.log 2>&1"
+popd
+echo   API    : http://localhost:4000
+echo   Admin  : http://localhost:5173
+echo   Mobile : http://localhost:5174
 
 rem ── [8/8] API 헬스체크 ────────────────────────────────────────────────────────
 echo [8/8] Waiting for API to be ready (up to 90s)...
-powershell -NoProfile -Command ^
-  "$ok=$false; for($i=0;$i-lt90;$i++){try{$r=Invoke-WebRequest -Uri 'http://127.0.0.1:4000/health' -UseBasicParsing -TimeoutSec 2; if($r.StatusCode-eq 200){$ok=$true;break}}catch{}; Start-Sleep 1}; if(-not $ok){exit 1}"
+powershell -NoProfile -Command "$ok=$false; for ($i=0; $i -lt 90; $i++) { try { $r = Invoke-WebRequest -Uri 'http://127.0.0.1:4000/health' -UseBasicParsing -TimeoutSec 2; if ($r.StatusCode -eq 200) { $ok=$true; break } } catch {} ; Start-Sleep 1 }; if (-not $ok) { exit 1 }"
+
 if %ERRORLEVEL% neq 0 (
-  echo ERROR: API did not become healthy. Check logs:
-  echo --- logs\api.log (last 60 lines) ---
-  powershell -NoProfile -Command "Get-Content '%LOG_DIR%\api.log' -ErrorAction SilentlyContinue -Tail 60"
+  echo.
+  echo ERROR: API health check failed after 90s.
+  echo Check the log file: %LOG_DIR%\api.log
+  echo.
+  echo Last 40 lines of api.log:
+  powershell -NoProfile -Command "Get-Content '%LOG_DIR%\api.log' -ErrorAction SilentlyContinue -Tail 40"
   exit /b 1
 )
 
