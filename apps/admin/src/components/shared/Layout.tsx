@@ -7,6 +7,8 @@ const NAV_ITEMS = [
   { path: "/", label: "대시보드", icon: "📊" },
   { path: "/zones", label: "주차 현황", icon: "🅿" },
   { path: "/reservations", label: "예약 관리", icon: "📅" },
+  { path: "/vehicles", label: "외부차량 조회", icon: "🔍" },
+  { path: "/blacklist", label: "블랙리스트", icon: "🚫" },
   { path: "/reports", label: "리포트", icon: "📈" },
   { path: "/simulation", label: "시뮬레이터", icon: "🎮" },
   { path: "/settings", label: "설정", icon: "⚙️" },

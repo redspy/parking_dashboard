@@ -20,24 +20,45 @@ import {
 import { GateState } from "@parking/types";
 
 export async function simulationRoutes(app: FastifyInstance) {
-  // Public QR scan endpoint (auth by token, not JWT)
-  app.post<{ Body: { token: string; plateNumber?: string } }>("/api/simulations/scan", async (request) => {
-    const { token, plateNumber } = request.body;
-    const vehicle = await scanQr(token, plateNumber);
+  // Public endpoints (separate scope — no auth hook)
+  app.register(async (pub) => {
+    // QR scan / join
+    pub.post<{ Body: { token: string; plateNumber?: string } }>("/api/simulations/scan", async (request) => {
+      const { token, plateNumber } = request.body;
+      const vehicle = await scanQr(token, plateNumber);
 
-    // Get simulation to find room
-    const sim = await prisma.simulationQrToken.findUnique({
-      where: { token },
-      include: { simulation: true },
+      const sim = await prisma.simulationQrToken.findUnique({
+        where: { token },
+        include: { simulation: true },
+      });
+
+      if (sim) {
+        emitVehicleSpawned(sim.simulationId, vehicle);
+        const stats = await getSimulationStats(sim.simulationId);
+        emitSimulationStats(sim.simulationId, stats);
+      }
+
+      return { vehicle };
     });
 
-    if (sim) {
-      emitVehicleSpawned(sim.simulationId, vehicle);
-      const stats = await getSimulationStats(sim.simulationId);
-      emitSimulationStats(sim.simulationId, stats);
-    }
+    // Vehicle pass — authenticated by simulation token instead of JWT
+    pub.post<{
+      Params: { id: string; vehicleId: string };
+      Body: { dropX: number; dropY: number; token: string };
+    }>("/api/simulations/:id/vehicles/:vehicleId/pass", async (request) => {
+      const { id, vehicleId } = request.params;
+      const { dropX, dropY, token } = request.body;
 
-    return { vehicle };
+      const qrToken = await prisma.simulationQrToken.findUnique({ where: { token } });
+      if (!qrToken || qrToken.simulationId !== id) throw Errors.forbidden();
+
+      const result = await processPassAttempt(id, vehicleId, dropX, dropY);
+
+      emitVehicleUpdated(id, result.vehicle);
+      emitSimulationStats(id, result.stats);
+
+      return result;
+    });
   });
 
   // Authenticated routes below

@@ -6,7 +6,7 @@ set "REPO_DIR=%~dp0"
 set "LOG_DIR=%REPO_DIR%logs"
 set "API_DIR=%REPO_DIR%apps\api"
 set "ENV_FILE=%API_DIR%\.env"
-set "ENV_EXAMPLE=%REPO_DIR%.env.example"
+set "RUNNER_ENV_FILE=D:\runners\parking_dashboard.env"
 
 echo ========================================
 echo  Parking Dashboard  --  Windows Deploy
@@ -58,13 +58,21 @@ if %ERRORLEVEL% neq 0 ( echo ERROR: Build failed. & exit /b 1 )
 rem ── [5/8] .env 확인 ───────────────────────────────────────────────────────────
 echo [5/8] Checking environment file...
 if not exist "%ENV_FILE%" (
-  echo   %ENV_FILE% not found. Copying from .env.example...
-  copy /Y "%ENV_EXAMPLE%" "%ENV_FILE%" >nul
-  if %ERRORLEVEL% neq 0 (
-    echo ERROR: Cannot copy .env.example to apps\api\.env
+  echo   apps\api\.env not found. Copying from runner secrets file...
+  if not exist "%RUNNER_ENV_FILE%" (
+    echo ERROR: Runner secrets file not found: %RUNNER_ENV_FILE%
+    echo   Please create this file on the server with the correct environment variables.
+    echo   See .env.example for reference.
     exit /b 1
   )
-  echo   IMPORTANT: Edit apps\api\.env and set JWT_SECRET before running in production.
+  copy /Y "%RUNNER_ENV_FILE%" "%ENV_FILE%" >nul
+  if %ERRORLEVEL% neq 0 (
+    echo ERROR: Failed to copy %RUNNER_ENV_FILE% to apps\api\.env
+    exit /b 1
+  )
+  echo   .env copied from %RUNNER_ENV_FILE%
+) else (
+  echo   .env already exists. Skipping.
 )
 
 rem ── [6/8] DB 마이그레이션 ─────────────────────────────────────────────────────

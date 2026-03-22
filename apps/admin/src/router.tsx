@@ -9,6 +9,8 @@ import { ReservationsPage } from "./pages/ReservationsPage";
 import { ReportsPage } from "./pages/ReportsPage";
 import { SimulationPage } from "./pages/SimulationPage";
 import { SettingsPage } from "./pages/SettingsPage";
+import { BlacklistPage } from "./pages/BlacklistPage";
+import { ExternalVehiclesPage } from "./pages/ExternalVehiclesPage";
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { token } = useAuthStore();
@@ -41,5 +43,13 @@ export const router: ReturnType<typeof createBrowserRouter> = createBrowserRoute
   {
     path: "/settings",
     element: <RequireAuth><SettingsPage /></RequireAuth>,
+  },
+  {
+    path: "/blacklist",
+    element: <RequireAuth><BlacklistPage /></RequireAuth>,
+  },
+  {
+    path: "/vehicles",
+    element: <RequireAuth><ExternalVehiclesPage /></RequireAuth>,
   },
 ]);

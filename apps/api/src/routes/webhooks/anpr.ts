@@ -47,6 +47,30 @@ export async function anprWebhookRoutes(app: FastifyInstance) {
         return;
       }
 
+      // 블랙리스트 차량 체크
+      if (lot && direction === AnprDirection.IN) {
+        const blacklisted = await prisma.blacklistVehicle.findUnique({
+          where: {
+            organizationId_plateNumber: {
+              organizationId: lot.organizationId,
+              plateNumber: plateNumber.toUpperCase(),
+            },
+          },
+        });
+
+        if (blacklisted) {
+          await createAlert({
+            organizationId: lot.organizationId,
+            lotId: lot.id,
+            type: AlertType.BLACKLIST_HIT,
+            severity: AlertSeverity.ERROR,
+            message: `블랙리스트 차량 입차 시도: ${plateNumber} — 사유: ${blacklisted.reason}`,
+          });
+          reply.code(202).send({ accepted: true, action: "blacklist_blocked" });
+          return;
+        }
+      }
+
       // Enqueue for processing
       await enqueue(JobType.ANPR_EVENT, {
         plateNumber,

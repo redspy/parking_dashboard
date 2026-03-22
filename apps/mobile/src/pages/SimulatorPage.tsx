@@ -31,11 +31,11 @@ async function callScan(token: string, plateNumber?: string) {
   return data;
 }
 
-async function passVehicle(simulationId: string, vehicleId: string, dropX = 0.5, dropY = 0.1) {
+async function passVehicle(simulationId: string, vehicleId: string, token: string, dropX = 0.5, dropY = 0.1) {
   const res = await fetch(`${API_BASE}/simulations/${simulationId}/vehicles/${vehicleId}/pass`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ dropX, dropY }),
+    body: JSON.stringify({ dropX, dropY, token }),
   });
   return res.json();
 }
@@ -146,7 +146,7 @@ export function SimulatorPage({ simulationId, token }: Props) {
     await new Promise((res) => setTimeout(res, ANIMATION_DURATION_MS));
 
     try {
-      const result = await passVehicle(simulationId, vehicleId, 0.5, 0.1);
+      const result = await passVehicle(simulationId, vehicleId, token, 0.5, 0.1);
       const passed = result.result === "PASSED";
       setApproachResult(passed ? "pass" : "fail");
     } catch {

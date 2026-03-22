@@ -20,6 +20,8 @@ import { reportRoutes } from "./routes/reports.js";
 import { simulationRoutes } from "./routes/simulations.js";
 import { reservationRoutes } from "./routes/reservations.js";
 import { slotRoutes } from "./routes/slots.js";
+import { blacklistRoutes } from "./routes/blacklist.js";
+import { externalVehicleRoutes } from "./routes/external-vehicles.js";
 import { sensorWebhookRoutes } from "./routes/webhooks/sensor.js";
 import { anprWebhookRoutes } from "./routes/webhooks/anpr.js";
 import { paymentWebhookRoutes } from "./routes/webhooks/payment.js";
@@ -71,6 +73,8 @@ async function bootstrap() {
   await app.register(simulationRoutes);
   await app.register(reservationRoutes);
   await app.register(slotRoutes);
+  await app.register(blacklistRoutes);
+  await app.register(externalVehicleRoutes);
   await app.register(sensorWebhookRoutes);
   await app.register(anprWebhookRoutes);
   await app.register(paymentWebhookRoutes);

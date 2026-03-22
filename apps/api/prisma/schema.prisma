@@ -17,10 +17,24 @@ model Organization {
   plan      String   @default("FREE") // OrgPlan enum
   createdAt DateTime @default(now())
 
-  lots  ParkingLot[]
-  users User[]
+  lots        ParkingLot[]
+  users       User[]
   simulations Simulation[]
-  alerts Alert[]
+  alerts      Alert[]
+  blacklist   BlacklistVehicle[]
+}
+
+// ─── Blacklist ─────────────────────────────────────────────────────────────────
+model BlacklistVehicle {
+  id             String       @id @default(cuid())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
+  plateNumber    String
+  reason         String
+  registeredBy   String       // 등록한 관리자 email
+  createdAt      DateTime     @default(now())
+
+  @@unique([organizationId, plateNumber])
 }
 
 // ─── User / Auth ──────────────────────────────────────────────────────────────

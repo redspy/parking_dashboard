@@ -58,11 +58,13 @@ export enum AlertType {
   GATE_ERROR = "GATE_ERROR",
   PAYMENT_ERROR = "PAYMENT_ERROR",
   ANPR_LOW_CONFIDENCE = "ANPR_LOW_CONFIDENCE",
+  BLACKLIST_HIT = "BLACKLIST_HIT",
 }
 
 export enum AlertSeverity {
   INFO = "INFO",
   WARN = "WARN",
+  ERROR = "ERROR",
   CRITICAL = "CRITICAL",
 }
 
@@ -164,6 +166,8 @@ export enum JobStatus {
 
 // ─── ANPR ─────────────────────────────────────────────────────────────────────
 export enum AnprDirection {
+  IN = "IN",
+  OUT = "OUT",
   ENTRY = "ENTRY",
   EXIT = "EXIT",
 }
