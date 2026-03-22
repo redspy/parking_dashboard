@@ -77,27 +77,32 @@ call pnpm --filter @parking/api exec prisma db seed >nul 2>&1
 
 rem ── [7/8] 서비스 시작 ─────────────────────────────────────────────────────────
 echo [7/8] Starting services...
-rem pushd 로 CWD를 REPO_DIR 로 변경 → 상대 경로 logs\ 사용 (중첩 따옴표 없음)
 pushd "%REPO_DIR%"
 start "parking-api"    /MIN cmd /c "pnpm --filter @parking/api    start   1>>logs\api.log    2>&1"
 start "parking-admin"  /MIN cmd /c "pnpm --filter @parking/admin  preview 1>>logs\admin.log  2>&1"
 start "parking-mobile" /MIN cmd /c "pnpm --filter @parking/mobile preview 1>>logs\mobile.log 2>&1"
 popd
-echo   API    : http://localhost:4000
-echo   Admin  : http://localhost:5173
-echo   Mobile : http://localhost:5174
+
+rem 5초 대기 후 api.log 선행 출력 (API 가 즉시 죽으면 여기서 원인을 알 수 있음)
+echo   Waiting 5s for API process to initialize...
+powershell -NoProfile -Command "Start-Sleep 5"
+echo.
+echo --- api.log (first 30 lines) ---
+powershell -NoProfile -Command "Get-Content '%LOG_DIR%\api.log' -ErrorAction SilentlyContinue -TotalCount 30"
+echo --- end ---
+echo.
 
 rem ── [8/8] API 헬스체크 ────────────────────────────────────────────────────────
-echo [8/8] Waiting for API to be ready (up to 90s)...
-powershell -NoProfile -Command "$ok=$false; for ($i=0; $i -lt 90; $i++) { try { $r = Invoke-WebRequest -Uri 'http://127.0.0.1:4000/health' -UseBasicParsing -TimeoutSec 2; if ($r.StatusCode -eq 200) { $ok=$true; break } } catch {} ; Start-Sleep 1 }; if (-not $ok) { exit 1 }"
+echo [8/8] Waiting for API to be ready (up to 60s)...
+powershell -NoProfile -Command "$ok=$false; for ($i=0; $i -lt 60; $i++) { try { $r = Invoke-WebRequest -Uri 'http://127.0.0.1:4000/health' -UseBasicParsing -TimeoutSec 2; if ($r.StatusCode -eq 200) { $ok=$true; break } } catch {} ; Start-Sleep 1 }; if (-not $ok) { exit 1 }"
 
 if %ERRORLEVEL% neq 0 (
   echo.
-  echo ERROR: API health check failed after 90s.
-  echo Check the log file: %LOG_DIR%\api.log
+  echo ERROR: API health check failed.
   echo.
-  echo Last 40 lines of api.log:
-  powershell -NoProfile -Command "Get-Content '%LOG_DIR%\api.log' -ErrorAction SilentlyContinue -Tail 40"
+  echo --- api.log (last 60 lines) ---
+  powershell -NoProfile -Command "Get-Content '%LOG_DIR%\api.log' -ErrorAction SilentlyContinue -Tail 60"
+  echo --- end ---
   exit /b 1
 )
 

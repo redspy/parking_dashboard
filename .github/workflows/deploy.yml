@@ -19,20 +19,39 @@ jobs:
       - name: Setup Node.js 20
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: "20"
 
-      - name: Enable corepack
+      - name: Install pnpm
+        shell: powershell
+        run: |
+          $v = & pnpm --version 2>$null
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "pnpm not found, installing..."
+            npm install -g pnpm@9
+          } else {
+            Write-Host "pnpm $v already installed"
+          }
+
+      - name: Check environment
+        shell: powershell
+        run: |
+          Write-Host "Node: $(node --version)"
+          Write-Host "pnpm: $(pnpm --version)"
+          Write-Host "Workspace: $env:GITHUB_WORKSPACE"
+          Write-Host "dist exists: $(Test-Path 'apps\api\dist')"
+          Write-Host "env exists : $(Test-Path 'apps\api\.env')"
+
+      - name: Run deploy.bat
         shell: cmd
         run: |
-          corepack enable
-
-      - name: Run deploy.bat from workspace
-        shell: cmd
-        run: |
-          echo Workspace: %GITHUB_WORKSPACE%
-          if not exist "%GITHUB_WORKSPACE%\deploy.bat" (
-            echo ERROR: deploy.bat not found in workspace
-            exit /b 1
-          )
           cd /d %GITHUB_WORKSPACE%
-          call "%GITHUB_WORKSPACE%\deploy.bat"
+          call deploy.bat
+
+      - name: Show logs on failure
+        if: failure()
+        shell: powershell
+        run: |
+          Write-Host "====== api.log ======"
+          Get-Content "logs\api.log" -ErrorAction SilentlyContinue | Select-Object -Last 80
+          Write-Host "====== admin.log ======"
+          Get-Content "logs\admin.log" -ErrorAction SilentlyContinue | Select-Object -Last 20
