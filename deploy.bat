@@ -108,7 +108,7 @@ if %ERRORLEVEL% neq 0 (
   echo.
   echo ERROR: API health check failed.
   echo.
-  echo --- api.log (last 60 lines) ---
+  echo --- api.log last 60 lines ---
   powershell -NoProfile -Command "Get-Content '%LOG_DIR%\api.log' -ErrorAction SilentlyContinue -Tail 60"
   echo --- end ---
   exit /b 1
